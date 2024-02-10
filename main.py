@@ -111,14 +111,6 @@ if USE_WEBEX:
     webex = WebexMessage(access_token=MY_BOT_TOKEN, on_message=process_message)
     webex.run()
 
-
-
-
-
-
-
-
-
 else:
     while True:
         # ask the user for their question
