@@ -13,7 +13,7 @@ from langchain_community.embeddings import LlamaCppEmbeddings
 # from services.webex_ws_bootstrap import WebexMessage
 from webexteamssdk import WebexTeamsAPI
 from webex_ws_bootstrap import WebexMessage
-
+from webex_froms_bootstrap import WebExForms
 template = """Instruction:
 You are an AI assistant for answering questions about the provided context.
 You are given the following extracted parts of a long document and a question. Provide a detailed answer.
@@ -108,7 +108,8 @@ if USE_WEBEX:
         sys.exit(-1)
      # TODO: Add a check for the bot token
     api = WebexTeamsAPI(access_token=MY_BOT_TOKEN)       
-    webex = WebexMessage(access_token=MY_BOT_TOKEN, on_message=process_message)
+    forms_adapter = WebExForms(api,qa_chain)
+    webex = WebexMessage(access_token=MY_BOT_TOKEN, on_message=forms_adapter.process_message)
     webex.run()
 
 else:
