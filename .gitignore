@@ -161,3 +161,8 @@ cython_debug/
 .DS_Store
 __init__.py
 .vscode
+phi-2.Q8_0.gguf
+database
+OpenAI-GPTs.pptx
+Prototyping presentation.pptx
+Vulnerability Management System Proposal.pptx

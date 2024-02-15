@@ -13,7 +13,7 @@ from langchain_community.embeddings import LlamaCppEmbeddings
 # from services.webex_ws_bootstrap import WebexMessage
 from webexteamssdk import WebexTeamsAPI
 from webex_ws_bootstrap import WebexMessage
-from webex_froms_bootstrap import WebExForms
+
 template = """Instruction:
 You are an AI assistant for answering questions about the provided context.
 You are given the following extracted parts of a long document and a question. Provide a detailed answer.
@@ -27,21 +27,18 @@ Output:\n"""
 QA_PROMPT = PromptTemplate(template=template, input_variables=["question", "context"])
 
 # Load Phi-2 model locally
-# MODEL_PATH = "/Users/apal2/.cache/lm-studio/models/TheBloke/phi-2-GGUF/phi-2.Q8_0.gguf"
-MODEL_PATH = "/Users/apal2/.cache/lm-studio/models/TheBloke/Llama-2-7B-Chat-GGUF/llama-2-7b-chat.Q4_0.gguf"
+MODEL_PATH = "/app/phi-2.Q8_0.gguf"
 
 DATA_FOLDER = "data"
 
 USE_WEBEX = True
 
-USE_LOCAL_DB = True
-
 MY_BOT_TOKEN = os.getenv("WEBEX_TEAMS_ACCESS_TOKEN")
 
 def read_data_from_directory(directory_path)-> List[Document]:
     text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
+            chunk_size=500,
+            chunk_overlap=100,
         )
     """Reads all PDF files from the given directory and returns their contents."""
     loaded_document: List[Document] = []
@@ -62,44 +59,26 @@ def read_data_from_directory(directory_path)-> List[Document]:
     documents = text_splitter.split_documents(loaded_document)
     return documents
 
-
+# Load the model
+data = read_data_from_directory(DATA_FOLDER)
 
 # embeddings = LlamaCppEmbeddings(model_path=model_path)
 
 # create the open-source embedding function
-# embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 # Equivalent to SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
 
+store = FAISS.from_documents(data, embeddings)
 
-embeddings = LlamaCppEmbeddings(
-    model_path=MODEL_PATH,
-    n_ctx=6000,
-    n_gpu_layers=25,
-    n_batch=30,
-    n_parts=1,
-)
-
-store = None
-if USE_LOCAL_DB:
-    store = FAISS.load_local("database", embeddings)
-else:
-    # Load the model
-    data = read_data_from_directory(DATA_FOLDER)
-    store = FAISS.from_documents(
-        data, embeddings)
-
-    store.save_local("database")
 
 llm = LlamaCpp(
     model_path=MODEL_PATH,
-    n_ctx=6000,
-    # n_ctx=2048,
-    n_gpu_layers=25,
+    n_ctx=2048,
+    n_gpu_layers=1,
     n_batch=30,
     n_threads=8,   
     temperature=0.9,
-    max_tokens= 4095,
-    n_parts = 1,
+    
 )
 
 # Load the model    
@@ -112,7 +91,16 @@ qa_chain = RetrievalQA.from_chain_type(
     verbose= True ,
 )
 
-
+def process_message(message_obj):  # Process messages that the bot receives.
+    # Access incoming message content with: message_obj.personEmail, message_obj.text, etc. Example API msg at the end of this code.
+    #___ incoming message contains the word 'hello'
+    if "hello" in message_obj.text.lower():
+        msg_result = api.messages.create(toPersonEmail=message_obj.personEmail, markdown="# Hello to you to!")
+    else:
+        result = qa_chain({"query": message_obj.text.lower()})
+        result["result"]
+        msg_result = api.messages.create(toPersonEmail=message_obj.personEmail, markdown=result["result"])
+    return msg_result
 
 if USE_WEBEX:   
     if MY_BOT_TOKEN is None:
@@ -120,8 +108,7 @@ if USE_WEBEX:
         sys.exit(-1)
      # TODO: Add a check for the bot token
     api = WebexTeamsAPI(access_token=MY_BOT_TOKEN)       
-    forms_adapter = WebExForms(api,qa_chain)
-    webex = WebexMessage(access_token=MY_BOT_TOKEN, on_message=forms_adapter.process_message)
+    webex = WebexMessage(access_token=MY_BOT_TOKEN, on_message=process_message)
     webex.run()
 
 else:
